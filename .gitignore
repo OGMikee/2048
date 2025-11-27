@@ -1,8 +1,11 @@
-.idea/
-*.iml
-target/
 *.class
-*.jar
 *.war
 .mvn/
+target/
+*.jar
+*.zip
+*.app
+dependency-reduced-pom.xml
+.idea/
+*.iml
 .DS_Store

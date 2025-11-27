@@ -1,0 +1,116 @@
+name: Build and Release
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  build:
+    strategy:
+      matrix:
+        os: [macos-latest, windows-latest, ubuntu-latest]
+        include:
+          - os: macos-latest
+            artifact-name: Game2048-Mac.zip
+            jpackage-type: app-image
+            zip-command: zip -r Game2048-Mac.zip Game2048.app
+          - os: windows-latest
+            artifact-name: Game2048-Windows.zip
+            jpackage-type: app-image
+            zip-command: Compress-Archive -Path Game2048 -DestinationPath Game2048-Windows.zip
+          - os: ubuntu-latest
+            artifact-name: Game2048-Linux.zip
+            jpackage-type: app-image
+            zip-command: zip -r Game2048-Linux.zip Game2048
+
+    runs-on: ${{ matrix.os }}
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 21
+        uses: actions/setup-java@v4
+        with:
+          java-version: '21'
+          distribution: 'temurin'
+
+      - name: Build with Maven
+        run: mvn clean package
+
+      - name: Create application with jpackage
+        run: |
+          jpackage \
+            --input target \
+            --name Game2048 \
+            --main-jar game2048-1.0.jar \
+            --main-class com.game2024.Main \
+            --type ${{ matrix.jpackage-type }} \
+            --module-path target/libs \
+            --add-modules javafx.controls,javafx.graphics,javafx.base \
+            --app-version 1.0
+        shell: bash
+
+      - name: Zip application
+        run: ${{ matrix.zip-command }}
+        shell: bash
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.artifact-name }}
+          path: ${{ matrix.artifact-name }}
+
+  release:
+    needs: build
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Get commit hash
+        id: vars
+        run: echo "sha_short=$(git rev-parse --short HEAD)" >> $GITHUB_OUTPUT
+
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v1
+        with:
+          tag_name: v1.0-${{ steps.vars.outputs.sha_short }}
+          name: Game 2048 - Build ${{ steps.vars.outputs.sha_short }}
+          files: |
+            artifacts/Game2048-Mac.zip/Game2048-Mac.zip
+            artifacts/Game2048-Windows.zip/Game2048-Windows.zip
+            artifacts/Game2048-Linux.zip/Game2048-Linux.zip
+          body: |
+            # 2048 Game - Multi-Platform Build
+            
+            ## Download & Play
+            
+            ### Mac
+            1. Download Game2048-Mac.zip
+            2. Unzip the file
+            3. Double-click Game2048.app to play!
+            
+            ### Windows
+            1. Download Game2048-Windows.zip
+            2. Unzip the file
+            3. Double-click Game2048.exe to play!
+            
+            ### Linux
+            1. Download Game2048-Linux.zip
+            2. Unzip the file
+            3. Run ./Game2048/bin/Game2048
+            
+            ## How to Play
+            Use arrow keys to slide tiles. Combine matching numbers to reach 2048!
+            
+            Built from commit ${{ github.sha }}
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
